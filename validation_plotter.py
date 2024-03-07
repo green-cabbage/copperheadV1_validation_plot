@@ -234,9 +234,9 @@ if __name__ == "__main__":
                 region = events.region
                 btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
                 category_selection = (
-                    # ~vbf_cut & # we're interested in ggH category
+                    ~vbf_cut & # we're interested in ggH category
                     ((region == "h-peak") | (region == "h-sidebands")) &
-                    btag_cut # btag cut is for VH and ttH categories
+                    ~btag_cut # btag cut is for VH and ttH categories
                 ).compute()
                 category_selection = ak.to_numpy(category_selection) # this will be multiplied with weights
                 if "data" in process.lower():
@@ -468,8 +468,8 @@ if __name__ == "__main__":
                     ratio_line.GetYaxis().SetNdivisions(505);
                 
                     ratio_line.Draw("SAME");
-                    num_hist.Draw("PE1 SAME");
                     mc_ratio.Draw("E2 SAME");
+                    num_hist.Draw("PE1 SAME");
                     pad2.RedrawAxis("sameaxis");
         
             # setup legends
@@ -554,13 +554,13 @@ if __name__ == "__main__":
                     weights = ak.to_numpy(events["wgt_nominal"].compute() )
                 #-----------------------------------------------    
                 # obtain the category selection
-                # vbf_cut = ak.fill_none(events.vbf_cut, value=False) # in the future none values will be replaced with False
+                vbf_cut = (events.jj_mass_nominal > 400) & (events.jj_dEta_nominal > 2.5) & (events.jet1_pt_nominal > 35)
                 region = events.region
                 btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
                 category_selection = (
-                    # ~vbf_cut & # we're interested in ggH category
+                    ~vbf_cut & # we're interested in ggH category
                     ((region == "h-peak") | (region == "h-sidebands")) &
-                    btag_cut # btag cut is for VH and ttH categories
+                    ~btag_cut # btag cut is for VH and ttH categories
                 ).compute()
                 category_selection = ak.to_numpy(category_selection) # this will be multiplied with weights
                 weights = weights*category_selection # weights where category_selection==False -> zero
