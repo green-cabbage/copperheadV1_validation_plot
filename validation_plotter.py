@@ -227,8 +227,10 @@ if __name__ == "__main__":
                 # obtain fraction weight, this should be the same for each process, so doesn't matter if we keep reassigning it
                 # fraction_weight = 1/events.fraction[0].compute()
                 fraction_weight = 1
+                # print(f"events.columns: {events.columns}")
                 # obtain the category selection
-                # vbf_cut = ak.fill_none(events.vbf_cut, value=False) # in the future none values will be replaced with False
+                vbf_cut = (events.jj_mass_nominal > 400) & (events.jj_dEta_nominal > 2.5) & (events.jet1_pt_nominal > 35)
+                
                 region = events.region
                 btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
                 category_selection = (
