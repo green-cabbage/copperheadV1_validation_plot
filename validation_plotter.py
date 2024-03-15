@@ -6,7 +6,7 @@ import argparse
 import os
 from ROOT_utils import setTDRStyle, CMS_lumi, reweightROOTH
 import dask.dataframe as dd
-
+from distributed import Client
 
 # real process arrangement
 group_data_processes = ["data_A", "data_B", "data_C", "data_D",]
@@ -191,6 +191,9 @@ if __name__ == "__main__":
     with open("./plot_settings.json", "r") as file:
         plot_settings = json.load(file)
     status = args.status.replace("_", " ")
+    
+    # define client for parallelization for speed boost
+    client =  Client(n_workers=31,  threads_per_worker=1, processes=True, memory_limit='4 GiB') 
     if args.ROOT_style:
         import ROOT
         #Plotting part
