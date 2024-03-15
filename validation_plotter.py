@@ -176,8 +176,14 @@ if __name__ == "__main__":
         elif ("jet" in particle):
             for kinematic in kinematic_vars:
                 # plot both leading and subleading muons/jets
-                variables2plot.append(f"{particle}1_{kinematic}_nominal")
-                variables2plot.append(f"{particle}2_{kinematic}_nominal")
+                # # original --------------------------------------------------
+                # variables2plot.append(f"{particle}1_{kinematic}_nominal")
+                # variables2plot.append(f"{particle}2_{kinematic}_nominal")
+                # # original end ---------------------------------------------------
+                # test --------------------------------------------------
+                variables2plot.append(f"{particle}1_{kinematic}")
+                variables2plot.append(f"{particle}2_{kinematic}")
+                # test end ---------------------------------------------------
         else:
             print(f"Unsupported variable: {particle} is given!")
     print(f"variables2plot: {variables2plot}")
@@ -228,21 +234,50 @@ if __name__ == "__main__":
                 # fraction_weight = 1/events.fraction[0].compute()
                 fraction_weight = 1
                 # print(f"events.columns: {events.columns}")
-                # obtain the category selection
-                vbf_cut = (events.jj_mass_nominal > 400) & (events.jj_dEta_nominal > 2.5) & (events.jet1_pt_nominal > 35)
+                # # original start ------------------------------------------------------------
+                # # obtain the category selection
+                # vbf_cut = (events.jj_mass_nominal > 400) & (events.jj_dEta_nominal > 2.5) & (events.jet1_pt_nominal > 35)
                 
-                region = events.region
-                btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
+                # region = events.region
+                # btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
+                # category_selection = (
+                #     ~vbf_cut & # we're interested in ggH category
+                #     ((region == "h-peak") | (region == "h-sidebands")) &
+                #     ~btag_cut # btag cut is for VH and ttH categories
+                # ).compute()
+                # category_selection = ak.to_numpy(category_selection) # this will be multiplied with weights
+                # if "data" in process.lower():
+                #     weights = np.ones_like(events["mu1_pt"].compute())
+                # else:
+                #     weights = ak.to_numpy(events["wgt_nominal"].compute() )
+                # # original end ------------------------------------------------------------
+
+
+                # test start -----------------------------------------------------------
+                # collect weights
+                weights = ak.to_numpy(events["weights"].compute() )
+                    
+                vbf_cut = (events.jj_mass > 400) & (events.jj_dEta > 2.5) & (events.jet1_pt > 35)
+                # forgot add region so recalculat from dimuon mass
+                mass = events.dimuon_mass
+                events["region"] = None
+                # print(f"events: {events}")
+                z_peak = ((mass > 76) & (mass < 106))
+                h_sidebands = ((mass > 110) & (mass < 115.03)) | ((mass > 135.03) & (mass < 150))
+                h_peak = ((mass > 115.03) & (mass < 135.03))
+                
+                # btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
+                btag_cut =(events.nBtagLoose >= 2) | (events.nBtagMedium >= 1)
                 category_selection = (
                     ~vbf_cut & # we're interested in ggH category
-                    ((region == "h-peak") | (region == "h-sidebands")) &
+                    (h_peak | h_sidebands) &
                     ~btag_cut # btag cut is for VH and ttH categories
                 ).compute()
-                category_selection = ak.to_numpy(category_selection) # this will be multiplied with weights
-                if "data" in process.lower():
-                    weights = np.ones_like(events["mu1_pt"].compute())
-                else:
-                    weights = ak.to_numpy(events["wgt_nominal"].compute() )
+                # test end --------------------------------------------------------
+
+
+                
+                
                 weights = weights*category_selection
                 np_hist, _ = np.histogram(events[var].compute(), bins=binning, weights = weights)
                 # print(f"max(np_hist): {max(np_hist)}")
@@ -547,21 +582,49 @@ if __name__ == "__main__":
                 full_load_path = args.load_path+f"/{year}/{process}/*.parquet"      
                 # events = dak.from_parquet(full_load_path)
                 events = dd.read_parquet(full_load_path)
+                # original start -----------------------------------------------------------
+                # # collect weights
+                # if "data" in process.lower():
+                #     weights = np.ones_like(events["mu1_pt"].compute())
+                # else:
+                #     weights = ak.to_numpy(events["wgt_nominal"].compute() )
+                # #-----------------------------------------------    
+                # # obtain the category selection
+                
+                # vbf_cut = (events.jj_mass_nominal > 400) & (events.jj_dEta_nominal > 2.5) & (events.jet1_pt_nominal > 35)
+                # region = events.region # forgot add region so recalculat from dimuon mass
+                
+                # # btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
+                # btag_cut =(events.nBtagLoose >= 2) | (events.nBtagMedium >= 1)
+                # category_selection = (
+                #     ~vbf_cut & # we're interested in ggH category
+                #     ((region == "h-peak") | (region == "h-sidebands")) &
+                #     ~btag_cut # btag cut is for VH and ttH categories
+                # ).compute()
+                # original end ------------------------------------
+
+                # test start -----------------------------------------------------------
                 # collect weights
-                if "data" in process.lower():
-                    weights = np.ones_like(events["mu1_pt"].compute())
-                else:
-                    weights = ak.to_numpy(events["wgt_nominal"].compute() )
-                #-----------------------------------------------    
-                # obtain the category selection
-                vbf_cut = (events.jj_mass_nominal > 400) & (events.jj_dEta_nominal > 2.5) & (events.jet1_pt_nominal > 35)
-                region = events.region
-                btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
+                weights = ak.to_numpy(events["weights"].compute() )
+                    
+                vbf_cut = (events.jj_mass > 400) & (events.jj_dEta > 2.5) & (events.jet1_pt > 35)
+                # forgot add region so recalculat from dimuon mass
+                mass = events.dimuon_mass
+                events["region"] = None
+                # print(f"events: {events}")
+                z_peak = ((mass > 76) & (mass < 106))
+                h_sidebands = ((mass > 110) & (mass < 115.03)) | ((mass > 135.03) & (mass < 150))
+                h_peak = ((mass > 115.03) & (mass < 135.03))
+                
+                # btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
+                btag_cut =(events.nBtagLoose >= 2) | (events.nBtagMedium >= 1)
                 category_selection = (
                     ~vbf_cut & # we're interested in ggH category
-                    ((region == "h-peak") | (region == "h-sidebands")) &
+                    (h_peak | h_sidebands) &
                     ~btag_cut # btag cut is for VH and ttH categories
                 ).compute()
+                # test end ------------------------------------
+                
                 category_selection = ak.to_numpy(category_selection) # this will be multiplied with weights
                 weights = weights*category_selection # weights where category_selection==False -> zero
 
