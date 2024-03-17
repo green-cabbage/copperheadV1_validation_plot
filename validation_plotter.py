@@ -7,6 +7,7 @@ import os
 from ROOT_utils import setTDRStyle, CMS_lumi, reweightROOTH
 import dask.dataframe as dd
 from distributed import Client
+import time
 
 # real process arrangement
 group_data_processes = ["data_A", "data_B", "data_C", "data_D",]
@@ -194,6 +195,8 @@ if __name__ == "__main__":
     
     # define client for parallelization for speed boost
     client =  Client(n_workers=31,  threads_per_worker=1, processes=True, memory_limit='4 GiB') 
+    # record time
+    time_step = time.time()
     if args.ROOT_style:
         import ROOT
         #Plotting part
@@ -882,4 +885,6 @@ if __name__ == "__main__":
                 os.makedirs(full_save_path)
             plt.savefig(f"{full_save_path}/{var}.pdf")
             plt.clf()
+    time_elapsed = round(time.time() - time_step, 3)
+    print(f"Finished in {time_elapsed} s.")
 
