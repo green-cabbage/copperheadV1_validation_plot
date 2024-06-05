@@ -1,6 +1,7 @@
+import numpy as np
+# print(np.__file__)
 import awkward as ak
 import dask_awkward as dak
-import numpy as np
 import json
 import argparse
 import os
@@ -130,6 +131,13 @@ if __name__ == "__main__":
     action="store",
     help="region value to plot, available regions are: h_peak, h_sidebands, z_peak and signal (h_peak OR h_sidebands)",
     )
+    parser.add_argument(
+    "--vbf",
+    dest="vbf_cat_mode",
+    default=False, 
+    action=argparse.BooleanOptionalAction,
+    help="If true, apply vbf cut for vbf category, else, ggH category cut",
+    )
     #---------------------------------------------------------
     # gather arguments
     args = parser.parse_args()
@@ -182,12 +190,15 @@ if __name__ == "__main__":
         raise ValueError
     for particle in args.variables:
         if "dimuon" in particle:
-            # variables2plot.append(f"{particle}_mass")
+            variables2plot.append(f"{particle}_mass")
             variables2plot.append(f"{particle}_pt")
             variables2plot.append(f"{particle}_cos_theta_cs")
             variables2plot.append(f"{particle}_phi_cs")
+            variables2plot.append(f"mmj_min_dPhi_nominal")
+            variables2plot.append(f"mmj_min_dEta_nominal")
             
         elif "dijet" in particle:
+            # variables2plot.append(f"gjj_mass_nominal")
             variables2plot.append(f"jj_mass_nominal")
             variables2plot.append(f"jj_dEta_nominal")
             variables2plot.append(f"jj_dPhi_nominal")
@@ -197,17 +208,11 @@ if __name__ == "__main__":
                 variables2plot.append(f"{particle}1_{kinematic}")
                 variables2plot.append(f"{particle}2_{kinematic}")
         elif ("jet" in particle):
+            variables2plot.append(f"njets_nominal")
             for kinematic in kinematic_vars:
                 # plot both leading and subleading muons/jets
-                # # original --------------------------------------------------
                 variables2plot.append(f"{particle}1_{kinematic}_nominal")
                 variables2plot.append(f"{particle}2_{kinematic}_nominal")
-                # # original end ---------------------------------------------------
-                # test --------------------------------------------------
-                # variables2plot.append(f"{particle}1_{kinematic}")
-                # variables2plot.append(f"{particle}2_{kinematic}")
-                # test end ---------------------------------------------------
-        
         else:
             print(f"Unsupported variable: {particle} is given!")
     print(f"variables2plot: {variables2plot}")
@@ -217,9 +222,30 @@ if __name__ == "__main__":
     status = args.status.replace("_", " ")
     
     # define client for parallelization for speed boost
-    client =  Client(n_workers=16,  threads_per_worker=1, processes=True, memory_limit='4 GiB') 
+    client =  Client(n_workers=31,  threads_per_worker=1, processes=True, memory_limit='4 GiB') 
+    print("Local scale Client created")
     # record time
     time_step = time.time()
+
+    # print(f"available_processes: {available_processes}")
+    # loaded_events = {} # intialize dictionary containing all the arrays
+    # for process in tqdm.tqdm(available_processes):
+    #     print(f"process: {process}")
+    #     full_load_path = args.load_path+f"/{year}/{process}/*.parquet"
+    #     # events = dak.from_parquet(full_load_path) 
+    #     events = dd.read_parquet(full_load_path)
+    #     fields2load = variables2plot + ["wgt_nominal", "region", "nBtagLoose_nominal", "nBtagMedium_nominal",]
+    #     is_data = "data" in process.lower()
+    #     if not is_data: # MC sample
+    #          fields2load += ["gjj_mass_nominal", "gjj_dR_nominal",]
+    #     events = events[fields2load]
+    #     # load data to memory using compute()
+    #     events = ak.zip({
+    #         field : events[field] for field in events.columns
+    #     }).compute()
+    #     loaded_events[process] = events
+    #     print(f"events: {events}")
+        
     if args.ROOT_style:
         import ROOT
         #Plotting part
@@ -236,7 +262,6 @@ if __name__ == "__main__":
         pad.SetRightMargin(0.06);
         pad.Draw();
         pad.cd();
-        fraction_weight = 1.0 # to be used later in reweightROOTH after all histograms are filled
         counter = 0
         for var in tqdm.tqdm(variables2plot):
             print(f"var: {var}")
@@ -258,22 +283,22 @@ if __name__ == "__main__":
             group_ggH_hists = [] # there should only be one ggH histogram, but making a list for consistency
             group_VBF_hists = [] # there should only be one VBF histogram, but making a list for consistency
             
-            # group_other_hists = [] # histograms not belonging to any other group
+
             print(f"available_processes: {available_processes}")
             for process in available_processes:
                 print(f"process: {process}")
                 full_load_path = args.load_path+f"/{year}/{process}/*.parquet"
                 # events = dak.from_parquet(full_load_path) 
                 events = dd.read_parquet(full_load_path)
-                # obtain fraction weight, this should be the same for each process, so doesn't matter if we keep reassigning it
                 # fraction_weight = 1/events.fraction[0].compute()
-                fraction_weight = 1
-
-
+                # print(f"process: {process}")
+                # events = loaded_events[process]
+                fraction_weight = 1.0
 
                 # test start -----------------------------------------------------------
                 # collect weights
-                weights = events["wgt_nominal"].compute().to_numpy()
+                # weights = events["wgt_nominal"].compute().to_numpy()
+                weights = events["wgt_nominal"].to_numpy()
                 vbf_cut = (events.jj_mass_nominal > 400) & (events.jj_dEta_nominal > 2.5) & (events.jet1_pt_nominal > 35)
                 # forgot add region so recalculat from dimuon mass
                 mass = events.dimuon_mass
@@ -292,20 +317,42 @@ if __name__ == "__main__":
                 else: 
                     print("ERROR: not acceptable region!")
                     raise ValueError
-                
+
+                if args.vbf_cat_mode:
+                    print("vbf mode!")
+                    prod_cat_cut =  vbf_cut
+                    # apply additional cut to MC samples if vbf 
+                    # VBF filter cut start -------------------------------------------------
+                    # if process == "dy_VBF_filter":
+                    #     print("dy_VBF_filter extra!")
+                    #     prod_cat_cut =  ( prod_cat_cut  
+                    #                 & ak.fill_none((events.gjj_mass > 350), value=False) 
+                    #     )
+                    # elif process == "dy_M-100To200":
+                    #     print("dy_M-100To200 extra!")
+                    #     prod_cat_cut =  ( prod_cat_cut  
+                    #                 & ak.fill_none((events.gjj_mass <= 350), value=False)  
+                    #     )
+                    # VBF filter cut end -------------------------------------------------
+                else: # we're interested in ggH category
+                    print("ggH mode!")
+                    prod_cat_cut =  ~vbf_cut
+                    
                 btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
                 category_selection = (
-                    ~vbf_cut & # we're interested in ggH category
+                    prod_cat_cut & 
                     region &
                     ~btag_cut # btag cut is for VH and ttH categories
-                ).compute()
+                )
+                # ).compute()
                 # test end --------------------------------------------------------
 
 
                 
                 category_selection = category_selection.to_numpy()
                 weights = weights*category_selection
-                values = events[var].fillna(-999.0).compute().to_numpy()
+                # values = events[var].fillna(-999.0).compute().to_numpy()
+                values = events[var].fillna(-999.0).to_numpy()
                 values_filter = values!=-999.0
                 values = values[values_filter]
                 weights = weights[values_filter]
@@ -605,7 +652,7 @@ if __name__ == "__main__":
             pad.Update();
             CMS_lumi(canvas, args.lumi, up=True, reduceSize=True, status=status);
             pad.RedrawAxis("sameaxis");
-            full_save_path = f"{args.save_path }/{year}/ROOTReg_{args.region}"
+            full_save_path = f"{args.save_path }/{year}/ROOT/Reg_{args.region}"
             if not os.path.exists(full_save_path):
                 os.makedirs(full_save_path)
             canvas.SaveAs(f"{full_save_path}/{var}.pdf");
@@ -693,10 +740,30 @@ if __name__ == "__main__":
                 else: 
                     print("ERROR: not acceptable region!")
                     raise ValueError
-                
+                    
+                if args.vbf_cat_mode:
+                    print("vbf mode!")
+                    prod_cat_cut =  vbf_cut
+                    # apply additional cut to MC samples if vbf 
+                    # VBF filter cut start -------------------------------------------------
+                    # if process == "dy_VBF_filter":
+                    #     print("dy_VBF_filter extra!")
+                    #     prod_cat_cut =  ( prod_cat_cut  
+                    #                 & ak.fill_none((events.gjj_mass > 350), value=False) 
+                    #     )
+                    # elif process == "dy_M-100To200":
+                    #     print("dy_M-100To200 extra!")
+                    #     prod_cat_cut =  ( prod_cat_cut  
+                    #                 & ak.fill_none((events.gjj_mass <= 350), value=False)  
+                    #     )
+                    # VBF filter cut end -------------------------------------------------
+                else: # we're interested in ggH category
+                    print("ggH mode!")
+                    prod_cat_cut =  ~vbf_cut
+                    
                 btag_cut =(events.nBtagLoose_nominal >= 2) | (events.nBtagMedium_nominal >= 1)
                 category_selection = (
-                    ~vbf_cut & # we're interested in ggH category
+                    prod_cat_cut & 
                     region &
                     ~btag_cut # btag cut is for VH and ttH categories
                 ).compute()
